@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>機甲番12問產生器</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Import Map for React & Lucide -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+        }
+    }
+    </script>
+    <style>
+        /* Custom scrollbar for webkit */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #171717; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #404040; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #525252; 
+        }
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .animate-fade-in {
+            animation: fade-in 0.2s ease-out;
+        }
+        body {
+            background-color: #171717; /* neutral-900 */
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useRef, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Download, Trash2, RotateCcw, Upload, Link as LinkIcon, X, AlertCircle, Camera, Loader2, Share2, Check, Save } from 'lucide-react';
+
+        const GRID_LABELS = [
+            "入坑機",
+            "第一台愛機",
+            "最佳機設",
+            "最強",
+            "真男人要用...",
+            "最喜歡的量產機",
+            "最喜歡的主角機",
+            "最喜歡的反派機",
+            "最意難平",
+            "最想開",
+            "最帥氣",
+            "最難忘"
+        ];
+
+        // Helper to resize image
+        const resizeImage = (file) => {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        const MAX_SIZE = 800;
+                        if (width > height) {
+                            if (width > MAX_SIZE) {
+                                height *= MAX_SIZE / width;
+                                width = MAX_SIZE;
+                            }
+                        } else {
+                            if (height > MAX_SIZE) {
+                                width *= MAX_SIZE / height;
+                                height = MAX_SIZE;
+                            }
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL(file.type));
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        };
+
+        const ImageModal = ({ isOpen, onClose, title, onUrlSelect }) => {
+            const [imageUrl, setImageUrl] = useState('');
+            const [activeTab, setActiveTab] = useState('upload'); 
+            const fileInputRef = useRef(null);
+            const [isProcessing, setIsProcessing] = useState(false);
+            
+            useEffect(() => {
+                if (isOpen) {
+                    setImageUrl('');
+                    setActiveTab('upload');
+                    setIsProcessing(false);
+                }
+            }, [isOpen]);
+
+            if (!isOpen) return null;
+
+            const handleUrlSubmit = (e) => {
+                e.preventDefault();
+                if (imageUrl) onUrlSelect(imageUrl);
+            };
+
+            const handleFileUpload = async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    setIsProcessing(true);
+                    try {
+                        const optimizedDataUrl = await resizeImage(file);
+                        onUrlSelect(optimizedDataUrl);
+                    } catch (err) {
+                        alert("圖片處理失敗，請試試看別張圖片");
+                        setIsProcessing(false);
+                    }
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-neutral-900 w-full max-w-md rounded-2xl border border-neutral-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-4 border-b border-neutral-800 bg-neutral-800/50">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                <span className="text-blue-400">#{title}</span>
+                            </h3>
+                            <button onClick={onClose} className="p-2 hover:bg-neutral-700 rounded-full transition-colors text-neutral-400 hover:text-white">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="flex border-b border-neutral-800 shrink-0">
+                            <button 
+                                onClick={() => setActiveTab('upload')}
+                                className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'upload' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/10' : 'text-neutral-400 hover:text-neutral-200'}`}
+                            >
+                                <Upload size={18} /> 本機上傳
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('url')}
+                                className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'url' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/10' : 'text-neutral-400 hover:text-neutral-200'}`}
+                            >
+                                <LinkIcon size={18} /> 圖片網址
+                            </button>
+                        </div>
+                        <div className="p-6 bg-neutral-900 min-h-[300px]">
+                            {activeTab === 'upload' && (
+                                <div className="flex flex-col items-center justify-center space-y-6 py-4 h-full">
+                                    {isProcessing ? (
+                                        <div className="text-center space-y-4">
+                                            <Loader2 className="animate-spin text-blue-500 w-12 h-12 mx-auto" />
+                                            <p className="text-neutral-400">正在優化圖片...</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div 
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="w-full border-2 border-dashed border-neutral-600 hover:border-blue-400 hover:bg-neutral-800/50 rounded-xl p-10 cursor-pointer transition-all group text-center"
+                                            >
+                                                <div className="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                                                    <Upload size={32} className="text-neutral-400 group-hover:text-blue-400" />
+                                                </div>
+                                                <h4 className="text-white font-bold text-lg mb-2">
+                                                    選擇「<span className="text-blue-400">{title}</span>」的圖片
+                                                </h4>
+                                                <p className="text-neutral-500 text-sm">自動壓縮優化，生成更快速</p>
+                                            </div>
+                                            <input 
+                                                type="file" 
+                                                ref={fileInputRef}
+                                                onChange={handleFileUpload}
+                                                accept="image/*"
+                                                className="hidden"
+                                            />
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                            {activeTab === 'url' && (
+                                <div className="space-y-6 pt-2">
+                                    <form onSubmit={handleUrlSubmit} className="space-y-4">
+                                        <div>
+                                            <label className="block text-neutral-400 text-sm mb-2">圖片網址</label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="url" 
+                                                    value={imageUrl}
+                                                    onChange={(e) => setImageUrl(e.target.value)}
+                                                    placeholder="https://..."
+                                                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-3 text-white focus:outline-none focus:border-blue-500 placeholder-neutral-600"
+                                                />
+                                                <LinkIcon className="absolute left-3 top-3.5 text-neutral-500" size={18} />
+                                            </div>
+                                        </div>
+                                        <button 
+                                            type="submit"
+                                            disabled={!imageUrl}
+                                            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors"
+                                        >
+                                            確認使用
+                                        </button>
+                                    </form>
+                                    <div className="bg-yellow-900/20 border border-yellow-900/50 rounded-lg p-4 text-sm text-yellow-200/80 flex gap-2">
+                                        <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                                        <span>若圖片產生時變成空白，表示該網站禁止匯出圖片。請改用「下載後上傳」的方式。</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ResultModal = ({ isOpen, onClose, resultImage }) => {
+            if (!isOpen || !resultImage) return null;
+
+            return (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="relative w-full max-w-4xl flex flex-col items-center h-full md:h-auto">
+                        
+                        <button 
+                            onClick={onClose}
+                            className="absolute top-0 right-0 md:-top-10 md:-right-10 p-2 text-white/70 hover:text-white transition-colors"
+                        >
+                            <X size={32} />
+                        </button>
+
+                        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                            <Check className="text-green-500" /> 圖片已生成
+                        </h2>
+
+                        <div className="bg-neutral-800 p-2 rounded-lg shadow-2xl border border-neutral-700 overflow-auto max-h-[65vh] w-full flex justify-center">
+                            <img 
+                                src={resultImage} 
+                                alt="Generated Result" 
+                                className="max-w-full h-auto object-contain"
+                            />
+                        </div>
+
+                        <div className="flex flex-col items-center gap-5 mt-6 w-full max-w-md">
+                            <div className="text-center space-y-2 bg-blue-900/10 border border-blue-500/30 p-4 rounded-xl w-full">
+                                <div className="flex items-center justify-center gap-2 text-blue-300 font-bold text-lg mb-1">
+                                    <Save size={20} />
+                                    <span>如何儲存圖片？</span>
+                                </div>
+                                <div className="text-neutral-300 text-sm leading-relaxed">
+                                    <p><span className="text-blue-400 font-bold">電腦：</span>滑鼠右鍵 ➝ 另存圖片</p>
+                                    <p><span className="text-blue-400 font-bold">手機：</span>長按圖片 ➝ 加入照片 / 下載</p>
+                                </div>
+                            </div>
+                            
+                            <button 
+                                onClick={onClose}
+                                className="w-full bg-neutral-700 hover:bg-neutral-600 text-white px-8 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg"
+                            >
+                                <RotateCcw size={18} />
+                                關閉視窗 / 繼續編輯
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const MechaGridMaker = () => {
+            const [images, setImages] = useState(Array(12).fill(null));
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [activeCell, setActiveCell] = useState(null);
+            
+            const [resultImage, setResultImage] = useState(null);
+            const [isResultOpen, setIsResultOpen] = useState(false);
+
+            const openModal = (index) => {
+                setActiveCell(index);
+                setIsModalOpen(true);
+            };
+
+            const closeModal = () => {
+                setIsModalOpen(false);
+                setActiveCell(null);
+            };
+
+            const handleImageSelect = (dataUrl) => {
+                if (activeCell !== null) {
+                    const newImages = [...images];
+                    newImages[activeCell] = dataUrl;
+                    setImages(newImages);
+                    closeModal();
+                }
+            };
+
+            const clearImage = (index, e) => {
+                e.stopPropagation();
+                const newImages = [...images];
+                newImages[index] = null;
+                setImages(newImages);
+            };
+
+            const resetAll = () => {
+                if (window.confirm('確定要清空所有圖片嗎？')) {
+                    setImages(Array(12).fill(null));
+                    setResultImage(null);
+                }
+            };
+
+            const generateImage = async () => {
+                setIsGenerating(true);
+                await new Promise(r => setTimeout(r, 100));
+
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const cellWidth = 300;
+                    const cellHeight = 400;
+                    const headerHeight = 160;
+                    const cols = 4;
+                    const rows = 3;
+                    const borderThickness = 10;
+                    const totalWidth = (cellWidth * cols) + (borderThickness * (cols + 1));
+                    const totalHeight = headerHeight + (cellHeight * rows) + (borderThickness * (rows + 1));
+
+                    canvas.width = totalWidth;
+                    canvas.height = totalHeight;
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    ctx.fillStyle = '#000000';
+                    ctx.font = 'bold 100px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('機甲番12問', totalWidth / 2, headerHeight / 2 + 10);
+
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, headerHeight, totalWidth, totalHeight - headerHeight);
+
+                    const loadImage = (src) => {
+                        return new Promise((resolve, reject) => {
+                            const img = new Image();
+                            if (!src.startsWith('data:')) {
+                                img.crossOrigin = "anonymous";
+                            }
+                            img.onload = () => resolve(img);
+                            img.onerror = () => reject(new Error("Image Load Failed"));
+                            img.src = src;
+                        });
+                    };
+
+                    let errorCount = 0;
+                    for (let i = 0; i < 12; i++) {
+                        const col = i % 4;
+                        const row = Math.floor(i / 4);
+                        const x = borderThickness + (col * (cellWidth + borderThickness));
+                        const y = headerHeight + borderThickness + (row * (cellHeight + borderThickness));
+
+                        ctx.fillStyle = '#f3f4f6';
+                        ctx.fillRect(x, y, cellWidth, cellHeight);
+
+                        if (images[i]) {
+                            try {
+                                const img = await loadImage(images[i]);
+                                const scale = Math.max(cellWidth / img.width, cellHeight / img.height);
+                                const xPos = (cellWidth - img.width * scale) / 2;
+                                const yPos = (cellHeight - img.height * scale) / 2;
+
+                                ctx.save();
+                                ctx.beginPath();
+                                ctx.rect(x, y, cellWidth, cellHeight);
+                                ctx.clip();
+                                ctx.drawImage(img, x + xPos, y + yPos, img.width * scale, img.height * scale);
+                                ctx.restore();
+                            } catch (e) {
+                                console.error(`Failed to load image at index ${i}`, e);
+                                errorCount++;
+                                ctx.fillStyle = '#fee2e2';
+                                ctx.fillRect(x, y, cellWidth, cellHeight);
+                                ctx.fillStyle = '#ef4444';
+                                ctx.font = 'bold 20px sans-serif';
+                                ctx.textAlign = 'center';
+                                ctx.fillText('無法讀取', x + cellWidth/2, y + cellHeight/2);
+                            }
+                        }
+
+                        ctx.save();
+                        ctx.font = 'bold 36px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'bottom';
+                        const textX = x + (cellWidth / 2);
+                        const textY = y + cellHeight - 15;
+                        
+                        ctx.lineWidth = 6;
+                        ctx.strokeStyle = 'black';
+                        ctx.lineJoin = 'round';
+                        ctx.strokeText(GRID_LABELS[i], textX, textY);
+                        
+                        ctx.fillStyle = 'white';
+                        ctx.fillText(GRID_LABELS[i], textX, textY);
+                        ctx.restore();
+                    }
+
+                    if (errorCount > 0) {
+                        alert(`注意：有 ${errorCount} 張圖片因為格式問題無法繪製。`);
+                    }
+
+                    const dataUrl = canvas.toDataURL('image/png');
+                    setResultImage(dataUrl);
+                    setIsResultOpen(true);
+
+                } catch (err) {
+                    console.error(err);
+                    alert("生成失敗，請重試。");
+                } finally {
+                    setIsGenerating(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-neutral-900 text-white p-4 pb-20 font-sans">
+                    <div className="max-w-5xl mx-auto">
+                        <div className="text-center mb-8 space-y-4">
+                            <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white mb-2">
+                                機甲番12問
+                            </h1>
+                            <p className="text-neutral-400 text-sm md:text-base">
+                                點擊格子填入圖片，完成後一鍵生成大圖
+                            </p>
+                            
+                            <div className="flex justify-center gap-4 sticky top-4 z-40">
+                                <button 
+                                    onClick={generateImage}
+                                    disabled={isGenerating}
+                                    className={`bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-70 disabled:cursor-wait`}
+                                >
+                                    {isGenerating ? (
+                                        <>
+                                            <Loader2 className="animate-spin" size={20} />
+                                            處理中...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Share2 size={20} />
+                                            生成圖片
+                                        </>
+                                    )}
+                                </button>
+                                <button 
+                                    onClick={resetAll}
+                                    disabled={isGenerating}
+                                    className="bg-neutral-700 hover:bg-neutral-600 text-white px-4 py-3 rounded-full font-bold shadow-lg flex items-center gap-2 transition-all"
+                                >
+                                    <RotateCcw size={20} />
+                                    重置
+                                </button>
+                            </div>
+                        </div>
+
+                        <div 
+                            className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 bg-black p-2 md:p-3 rounded-lg shadow-2xl border-4 border-black mx-auto"
+                            style={{ maxWidth: '1000px' }}
+                        >
+                            {GRID_LABELS.map((label, index) => (
+                                <div 
+                                    key={index}
+                                    onClick={() => openModal(index)}
+                                    className="relative aspect-[3/4] bg-neutral-800 cursor-pointer group overflow-hidden border-2 border-transparent hover:border-blue-400 transition-colors"
+                                >
+                                    {images[index] ? (
+                                        <>
+                                            <img 
+                                                src={images[index]} 
+                                                alt={label} 
+                                                className="w-full h-full object-cover"
+                                                crossOrigin={images[index].startsWith('data:') ? undefined : "anonymous"}
+                                            />
+                                            <button 
+                                                onClick={(e) => clearImage(index, e)}
+                                                className="absolute top-2 right-2 bg-black/60 hover:bg-red-600 text-white p-1.5 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10"
+                                                title="移除圖片"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-500 group-hover:text-neutral-300 transition-colors">
+                                            <div className="bg-neutral-700/50 p-4 rounded-full mb-2">
+                                                <Camera size={32} className="md:w-10 md:h-10 opacity-70" />
+                                            </div>
+                                            <span className="text-xs md:text-sm font-medium">上傳圖片</span>
+                                        </div>
+                                    )}
+                                    <div className="absolute bottom-0 left-0 right-0 p-3 flex justify-center items-end pointer-events-none bg-gradient-to-t from-black/60 to-transparent pt-10">
+                                        <span 
+                                            className="text-lg md:text-2xl font-bold text-white tracking-wide text-center leading-tight"
+                                            style={{ 
+                                                textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
+                                            }}
+                                        >
+                                            {label}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="h-10"></div>
+                        
+                        <ImageModal 
+                            isOpen={isModalOpen}
+                            onClose={closeModal}
+                            title={activeCell !== null ? GRID_LABELS[activeCell] : ''}
+                            onUrlSelect={handleImageSelect}
+                        />
+
+                        <ResultModal 
+                            isOpen={isResultOpen}
+                            onClose={() => setIsResultOpen(false)}
+                            resultImage={resultImage}
+                        />
+                    </div>
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<MechaGridMaker />);
+    </script>
+</body>
+</html>
