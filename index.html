@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8"> 
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>機甲番12問產生器</title>
+    <title>機甲番12問產生器 (含裁切功能)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Babel for JSX -->
@@ -19,30 +19,15 @@
     }
     </script>
     <style>
-        /* Custom scrollbar for webkit */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #171717; 
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #404040; 
-            border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #525252; 
-        }
-        @keyframes fade-in {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        .animate-fade-in {
-            animation: fade-in 0.2s ease-out;
-        }
-        body {
-            background-color: #171717; /* neutral-900 */
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #171717; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #404040; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #525252; }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in { animation: fade-in 0.2s ease-out; }
+        body { background-color: #171717; }
+        /* Crop Area Styles */
+        .crop-container { cursor: move; touch-action: none; }
     </style>
 </head>
 <body>
@@ -51,89 +36,331 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useRef, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Download, Trash2, RotateCcw, Upload, Link as LinkIcon, X, AlertCircle, Camera, Loader2, Share2, Check, Save } from 'lucide-react';
+        import { Download, Trash2, RotateCcw, Upload, Link as LinkIcon, X, AlertCircle, Camera, Loader2, Share2, Check, Save, Move, ZoomIn, Edit3 } from 'lucide-react';
 
-        const GRID_LABELS = [
-            "入坑機",
-            "第一台愛機",
-            "最佳機設",
-            "最強",
-            "真男人要用...",
-            "最喜歡的量產機",
-            "最喜歡的主角機",
-            "最喜歡的反派機",
-            "最意難平",
-            "最想開",
-            "最帥氣",
-            "最難忘"
+        const DEFAULT_GRID_LABELS = [
+            "入坑機", "第一台愛機", "最佳機設", "最強",
+            "真男人要用...", "最喜歡的量產機", "最喜歡的主角機", "最喜歡的反派機",
+            "最意難平", "最想開", "最帥氣", "最難忘"
         ];
 
-        // Helper to resize image
-        const resizeImage = (file) => {
-            return new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        let width = img.width;
-                        let height = img.height;
-                        const MAX_SIZE = 800;
-                        if (width > height) {
-                            if (width > MAX_SIZE) {
-                                height *= MAX_SIZE / width;
-                                width = MAX_SIZE;
-                            }
-                        } else {
-                            if (height > MAX_SIZE) {
-                                width *= MAX_SIZE / height;
-                                height = MAX_SIZE;
-                            }
-                        }
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-                        resolve(canvas.toDataURL(file.type));
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            });
+        // --- Cropper Component ---
+        const ImageCropper = ({ imageSrc, onConfirm, onCancel }) => {
+            const [scale, setScale] = useState(1);
+            const [position, setPosition] = useState({ x: 0, y: 0 });
+            const [isDragging, setIsDragging] = useState(false);
+            const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+            const imgRef = useRef(null);
+            const containerRef = useRef(null);
+
+            // Calculate min scale to cover the area
+            useEffect(() => {
+                if (imgRef.current && containerRef.current) {
+                    const img = imgRef.current;
+                    const container = containerRef.current;
+                    // Aspect ratio is 3:4 (300:400)
+                    const aspect = 3/4; 
+                    // Initial fitting logic could go here if needed
+                }
+            }, [imageSrc]);
+
+            const handleMouseDown = (e) => {
+                setIsDragging(true);
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                setDragStart({ x: clientX - position.x, y: clientY - position.y });
+            };
+
+            const handleMouseMove = (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                setPosition({ x: clientX - dragStart.x, y: clientY - dragStart.y });
+            };
+
+            const handleMouseUp = () => {
+                setIsDragging(false);
+            };
+
+            const handleCrop = () => {
+                const canvas = document.createElement('canvas');
+                // Output size: 600x800 (Double the display size for quality)
+                const outWidth = 600;
+                const outHeight = 800;
+                canvas.width = outWidth;
+                canvas.height = outHeight;
+                const ctx = canvas.getContext('2d');
+
+                const img = imgRef.current;
+                
+                // Calculations to map the visible CSS transform to Canvas drawImage
+                // The container is fixed size (e.g. 300x400 in UI), but we want high res output.
+                // We need to map the "visual" pixels to "image" pixels.
+                
+                // Let's rely on drawing the image with the same offsets scaled up
+                // Container visual size (CSS pixels)
+                const contW = 300; 
+                const contH = 400;
+
+                // Create a temporary canvas to apply transformations
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, outWidth, outHeight);
+                
+                // Scale factor between visual container and output canvas
+                const outputScale = outWidth / contW; // 2
+
+                ctx.save();
+                // Move to center to scale from center? No, our transform origin is usually center or top-left.
+                // In CSS transform logic above: translate(x, y) scale(s)
+                // We are emulating the visual appearance onto the canvas.
+                
+                // 1. Move to the translated position (scaled up for output)
+                ctx.translate(position.x * outputScale, position.y * outputScale);
+                
+                // 2. Scale from center of the image visually? 
+                // The CSS transform-origin defaults to 50% 50% of the element (the image).
+                // To match CSS:
+                // Move to center of image -> Scale -> Move back
+                const imgCenterX = (img.width * outputScale) / 2;
+                const imgCenterY = (img.height * outputScale) / 2;
+
+                // However, our simplified CSS logic applies transform to the <img> element directly.
+                // Let's try a simpler approach: Draw the image at (x,y) with width*scale, height*scale.
+                // But we need to account that the pivot point for scaling in our simple UI 
+                // might look different if we don't align origins.
+                
+                // Let's just draw it:
+                // Visible Width = NaturalWidth * Scale
+                // Visible X = position.x
+                
+                // To keep it centered initially:
+                // We need to render the image centered in the canvas, plus the user offset.
+                
+                // Center of Canvas
+                const cx = outWidth / 2;
+                const cy = outHeight / 2;
+
+                // Draw Image properties
+                const drawW = img.naturalWidth * scale * (outWidth / img.naturalWidth * (img.naturalWidth/contW)); // Approximate mapping?
+                // Actually easier:
+                // The visual image width is img.width (displayed) * scale.
+                // img.width in CSS is usually "auto" or constrained.
+                
+                // Let's compute exact pixel mapping.
+                // CSS displayed width (before scale)
+                const displayW = img.width; 
+                const displayH = img.height;
+
+                ctx.translate(cx, cy);
+                ctx.translate(position.x * outputScale, position.y * outputScale);
+                ctx.scale(scale, scale);
+                
+                // Draw image centered at origin
+                // We need to draw the source image such that it fits the container logic
+                // If the image was "object-fit: cover" initially, we need to replicate that base scale?
+                // Let's assume the user starts from 1:1 pixel mapping relative to container? No.
+                
+                // SIMPLIFIED LOGIC:
+                // Just draw the image. 
+                // position.x is relative to the center of container? 
+                // Let's adjust the UI to be easier to map.
+                // In UI: Image is centered in container. User moves it (translate) and scales it (scale).
+                
+                ctx.drawImage(
+                    img, 
+                    -img.naturalWidth / 2 * (outWidth/displayW), // This mapping is tricky without knowing exact display render
+                    -img.naturalHeight / 2 * (outWidth/displayW) 
+                );
+                
+                // RE-ATTEMPTING ROBUST CROP LOGIC:
+                // Instead of complex math, let's just draw what the user sees relative to the container.
+                // Container is 300x400.
+                // Image is displayed with style { transform: translate(x,y) scale(s) }
+                // Image is naturally centered via flexbox in UI.
+                
+                const ratio = img.naturalWidth / img.naturalHeight;
+                let baseW, baseH;
+                
+                // "Contain" logic as base size to ensure it fits? Or just use natural size?
+                // Let's use the logic that fits the image into the view initially.
+                if (ratio > 3/4) {
+                    // Wider than container
+                    baseH = contH;
+                    baseW = contH * ratio;
+                } else {
+                    // Taller than container
+                    baseW = contW;
+                    baseH = contW / ratio;
+                }
+                
+                // Now we have the size of the image "at scale 1" in the UI (before user zoom)
+                // Draw onto output canvas (size 600x800, so 2x factor)
+                ctx.restore(); // reset
+                ctx.clearRect(0,0,outWidth,outHeight);
+                ctx.save();
+                
+                // Output center
+                ctx.translate(outWidth/2, outHeight/2);
+                // User pan (scaled x2)
+                ctx.translate(position.x * 2, position.y * 2);
+                // User zoom
+                ctx.scale(scale, scale);
+                
+                // Draw image centered
+                ctx.drawImage(
+                    img, 
+                    -baseW, // baseW is roughly half size visually (300px), so * 2 for output? No baseW is CSS px.
+                    -baseH, 
+                    baseW * 2, 
+                    baseH * 2
+                );
+                
+                ctx.restore();
+                
+                onConfirm(canvas.toDataURL('image/png'));
+            };
+
+            return (
+                <div className="flex flex-col h-full">
+                     <div className="flex-1 bg-black/50 flex items-center justify-center overflow-hidden relative select-none">
+                        {/* Crop Frame (3:4) */}
+                        <div 
+                            ref={containerRef}
+                            className="relative overflow-hidden border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.7)]"
+                            style={{ width: '300px', height: '400px' }}
+                            onMouseDown={handleMouseDown}
+                            onMouseMove={handleMouseMove}
+                            onMouseUp={handleMouseUp}
+                            onMouseLeave={handleMouseUp}
+                            onTouchStart={handleMouseDown}
+                            onTouchMove={handleMouseMove}
+                            onTouchEnd={handleMouseUp}
+                        >
+                            <img 
+                                ref={imgRef}
+                                src={imageSrc}
+                                alt="Crop target"
+                                className="absolute top-1/2 left-1/2 max-w-none origin-center pointer-events-none"
+                                style={{ 
+                                    transform: `translate(-50%, -50%) translate(${position.x}px, ${position.y}px) scale(${scale})`,
+                                    // Initial sizing logic handled by calculating baseW/baseH above implicitly by using max-height/width constraints?
+                                    // To match the canvas logic, we need explicit sizing.
+                                    // Let's force "Contain" logic via JS or specific CSS
+                                    height: (imgRef.current?.naturalWidth / imgRef.current?.naturalHeight > 3/4) ? '400px' : 'auto',
+                                    width: (imgRef.current?.naturalWidth / imgRef.current?.naturalHeight > 3/4) ? 'auto' : '300px',
+                                }}
+                                onLoad={(e) => {
+                                    // Reset on load
+                                    setScale(1); 
+                                    setPosition({x:0, y:0});
+                                }}
+                            />
+                            {/* Grid overlay */}
+                            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-30">
+                                <div className="border-r border-white/50"></div>
+                                <div className="border-r border-white/50"></div>
+                                <div className=""></div>
+                                <div className="border-r border-t border-white/50"></div>
+                                <div className="border-r border-t border-white/50"></div>
+                                <div className="border-t border-white/50"></div>
+                                <div className="border-r border-t border-white/50"></div>
+                                <div className="border-r border-t border-white/50"></div>
+                                <div className="border-t border-white/50"></div>
+                            </div>
+                        </div>
+                        
+                        {/* Hint */}
+                        <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
+                            <span className="bg-black/60 text-white text-xs px-3 py-1 rounded-full flex items-center justify-center gap-1 w-fit mx-auto">
+                                <Move size={12}/> 拖曳移動圖片
+                            </span>
+                        </div>
+                     </div>
+
+                     {/* Controls */}
+                     <div className="p-4 bg-neutral-800 border-t border-neutral-700 space-y-4">
+                        <div className="flex items-center gap-3">
+                            <ZoomIn size={20} className="text-neutral-400"/>
+                            <input 
+                                type="range" 
+                                min="0.5" 
+                                max="3" 
+                                step="0.05" 
+                                value={scale}
+                                onChange={(e) => setScale(parseFloat(e.target.value))}
+                                className="w-full h-2 bg-neutral-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            />
+                            <span className="text-white w-10 text-right">{(scale * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={onCancel} className="flex-1 py-3 bg-neutral-700 text-white rounded-lg font-bold">取消</button>
+                            <button onClick={handleCrop} className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-bold">確認使用</button>
+                        </div>
+                     </div>
+                </div>
+            );
         };
+
 
         const ImageModal = ({ isOpen, onClose, title, onUrlSelect }) => {
             const [imageUrl, setImageUrl] = useState('');
             const [activeTab, setActiveTab] = useState('upload'); 
             const fileInputRef = useRef(null);
-            const [isProcessing, setIsProcessing] = useState(false);
+            
+            // Cropper State
+            const [tempImage, setTempImage] = useState(null); // The raw uploaded image
             
             useEffect(() => {
                 if (isOpen) {
                     setImageUrl('');
+                    setTempImage(null);
                     setActiveTab('upload');
-                    setIsProcessing(false);
                 }
             }, [isOpen]);
 
             if (!isOpen) return null;
 
+            // If we have a temp image, show cropper
+            if (tempImage) {
+                return (
+                    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm animate-fade-in flex flex-col">
+                        <div className="flex justify-between items-center p-4 border-b border-neutral-800 bg-neutral-900">
+                             <h3 className="text-white font-bold">調整圖片: {title}</h3>
+                             <button onClick={() => setTempImage(null)}><X className="text-white"/></button>
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <ImageCropper 
+                                imageSrc={tempImage}
+                                onConfirm={(croppedDataUrl) => {
+                                    onUrlSelect(croppedDataUrl);
+                                    setTempImage(null);
+                                }}
+                                onCancel={() => setTempImage(null)}
+                            />
+                        </div>
+                    </div>
+                );
+            }
+
             const handleUrlSubmit = (e) => {
                 e.preventDefault();
-                if (imageUrl) onUrlSelect(imageUrl);
+                if (imageUrl) {
+                    // For URL, we can't easily crop due to CORS taint on canvas often.
+                    // We just use it directly or try to load it into cropper if CORS permits.
+                    // Let's try to load into cropper.
+                    setTempImage(imageUrl);
+                }
             };
 
-            const handleFileUpload = async (e) => {
+            const handleFileUpload = (e) => {
                 const file = e.target.files[0];
                 if (file) {
-                    setIsProcessing(true);
-                    try {
-                        const optimizedDataUrl = await resizeImage(file);
-                        onUrlSelect(optimizedDataUrl);
-                    } catch (err) {
-                        alert("圖片處理失敗，請試試看別張圖片");
-                        setIsProcessing(false);
-                    }
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        setTempImage(e.target.result);
+                    };
+                    reader.readAsDataURL(file);
                 }
             };
 
@@ -165,34 +392,25 @@
                         <div className="p-6 bg-neutral-900 min-h-[300px]">
                             {activeTab === 'upload' && (
                                 <div className="flex flex-col items-center justify-center space-y-6 py-4 h-full">
-                                    {isProcessing ? (
-                                        <div className="text-center space-y-4">
-                                            <Loader2 className="animate-spin text-blue-500 w-12 h-12 mx-auto" />
-                                            <p className="text-neutral-400">正在優化圖片...</p>
+                                    <div 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="w-full border-2 border-dashed border-neutral-600 hover:border-blue-400 hover:bg-neutral-800/50 rounded-xl p-10 cursor-pointer transition-all group text-center"
+                                    >
+                                        <div className="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                                            <Upload size={32} className="text-neutral-400 group-hover:text-blue-400" />
                                         </div>
-                                    ) : (
-                                        <>
-                                            <div 
-                                                onClick={() => fileInputRef.current?.click()}
-                                                className="w-full border-2 border-dashed border-neutral-600 hover:border-blue-400 hover:bg-neutral-800/50 rounded-xl p-10 cursor-pointer transition-all group text-center"
-                                            >
-                                                <div className="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                                                    <Upload size={32} className="text-neutral-400 group-hover:text-blue-400" />
-                                                </div>
-                                                <h4 className="text-white font-bold text-lg mb-2">
-                                                    選擇「<span className="text-blue-400">{title}</span>」的圖片
-                                                </h4>
-                                                <p className="text-neutral-500 text-sm">自動壓縮優化，生成更快速</p>
-                                            </div>
-                                            <input 
-                                                type="file" 
-                                                ref={fileInputRef}
-                                                onChange={handleFileUpload}
-                                                accept="image/*"
-                                                className="hidden"
-                                            />
-                                        </>
-                                    )}
+                                        <h4 className="text-white font-bold text-lg mb-2">
+                                            選擇「<span className="text-blue-400">{title}</span>」的圖片
+                                        </h4>
+                                        <p className="text-neutral-500 text-sm">選擇後可裁切位置</p>
+                                    </div>
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef}
+                                        onChange={handleFileUpload}
+                                        accept="image/*"
+                                        className="hidden"
+                                    />
                                 </div>
                             )}
                             {activeTab === 'url' && (
@@ -216,12 +434,12 @@
                                             disabled={!imageUrl}
                                             className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors"
                                         >
-                                            確認使用
+                                            進入裁切
                                         </button>
                                     </form>
                                     <div className="bg-yellow-900/20 border border-yellow-900/50 rounded-lg p-4 text-sm text-yellow-200/80 flex gap-2">
                                         <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                                        <span>若圖片產生時變成空白，表示該網站禁止匯出圖片。請改用「下載後上傳」的方式。</span>
+                                        <span>注意：跨域圖片可能無法裁切，系統會盡力嘗試載入。</span>
                                     </div>
                                 </div>
                             )}
@@ -284,6 +502,10 @@
 
         const MechaGridMaker = () => {
             const [images, setImages] = useState(Array(12).fill(null));
+            const [gridLabels, setGridLabels] = useState(DEFAULT_GRID_LABELS);
+            const [mainTitle, setMainTitle] = useState("機甲番12問");
+            const [isEditMode, setIsEditMode] = useState(false); // Toggle for editing labels
+
             const [isGenerating, setIsGenerating] = useState(false);
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [activeCell, setActiveCell] = useState(null);
@@ -324,6 +546,12 @@
                 }
             };
 
+            const handleLabelChange = (index, value) => {
+                const newLabels = [...gridLabels];
+                newLabels[index] = value;
+                setGridLabels(newLabels);
+            };
+
             const generateImage = async () => {
                 setIsGenerating(true);
                 await new Promise(r => setTimeout(r, 100));
@@ -346,11 +574,12 @@
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+                    // Draw Main Title
                     ctx.fillStyle = '#000000';
                     ctx.font = 'bold 100px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText('機甲番12問', totalWidth / 2, headerHeight / 2 + 10);
+                    ctx.fillText(mainTitle, totalWidth / 2, headerHeight / 2 + 10);
 
                     ctx.fillStyle = '#000000';
                     ctx.fillRect(0, headerHeight, totalWidth, totalHeight - headerHeight);
@@ -380,16 +609,8 @@
                         if (images[i]) {
                             try {
                                 const img = await loadImage(images[i]);
-                                const scale = Math.max(cellWidth / img.width, cellHeight / img.height);
-                                const xPos = (cellWidth - img.width * scale) / 2;
-                                const yPos = (cellHeight - img.height * scale) / 2;
-
-                                ctx.save();
-                                ctx.beginPath();
-                                ctx.rect(x, y, cellWidth, cellHeight);
-                                ctx.clip();
-                                ctx.drawImage(img, x + xPos, y + yPos, img.width * scale, img.height * scale);
-                                ctx.restore();
+                                // Image is already cropped to aspect ratio by the modal, so we just fill
+                                ctx.drawImage(img, x, y, cellWidth, cellHeight);
                             } catch (e) {
                                 console.error(`Failed to load image at index ${i}`, e);
                                 errorCount++;
@@ -412,10 +633,10 @@
                         ctx.lineWidth = 6;
                         ctx.strokeStyle = 'black';
                         ctx.lineJoin = 'round';
-                        ctx.strokeText(GRID_LABELS[i], textX, textY);
+                        ctx.strokeText(gridLabels[i], textX, textY);
                         
                         ctx.fillStyle = 'white';
-                        ctx.fillText(GRID_LABELS[i], textX, textY);
+                        ctx.fillText(gridLabels[i], textX, textY);
                         ctx.restore();
                     }
 
@@ -438,13 +659,30 @@
             return (
                 <div className="min-h-screen bg-neutral-900 text-white p-4 pb-20 font-sans">
                     <div className="max-w-5xl mx-auto">
-                        <div className="text-center mb-8 space-y-4">
-                            <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white mb-2">
-                                機甲番12問
-                            </h1>
-                            <p className="text-neutral-400 text-sm md:text-base">
-                                點擊格子填入圖片，完成後一鍵生成大圖
-                            </p>
+                        <div className="text-center mb-6 space-y-4">
+                            {/* Editable Title */}
+                            <div className="relative group inline-block">
+                                <input 
+                                    type="text"
+                                    value={mainTitle}
+                                    onChange={(e) => setMainTitle(e.target.value)}
+                                    className="text-4xl md:text-6xl font-black tracking-tight text-white bg-transparent text-center border-b-2 border-transparent hover:border-blue-500 focus:border-blue-500 focus:outline-none transition-all w-full md:w-auto"
+                                    placeholder="輸入標題"
+                                />
+                                <Edit3 size={20} className="absolute -right-6 top-1/2 -translate-y-1/2 text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+
+                            <div className="flex justify-center items-center gap-2 mb-2">
+                                <p className="text-neutral-400 text-sm md:text-base">
+                                    點擊格子填入圖片 (可裁切縮放)
+                                </p>
+                                <button 
+                                    onClick={() => setIsEditMode(!isEditMode)}
+                                    className={`text-xs px-2 py-1 rounded border ${isEditMode ? 'bg-blue-600 border-blue-600 text-white' : 'border-neutral-600 text-neutral-400 hover:text-white'}`}
+                                >
+                                    {isEditMode ? '完成編輯文字' : '修改格子文字'}
+                                </button>
+                            </div>
                             
                             <div className="flex justify-center gap-4 sticky top-4 z-40">
                                 <button 
@@ -479,10 +717,10 @@
                             className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 bg-black p-2 md:p-3 rounded-lg shadow-2xl border-4 border-black mx-auto"
                             style={{ maxWidth: '1000px' }}
                         >
-                            {GRID_LABELS.map((label, index) => (
+                            {gridLabels.map((label, index) => (
                                 <div 
                                     key={index}
-                                    onClick={() => openModal(index)}
+                                    onClick={() => !isEditMode && openModal(index)}
                                     className="relative aspect-[3/4] bg-neutral-800 cursor-pointer group overflow-hidden border-2 border-transparent hover:border-blue-400 transition-colors"
                                 >
                                     {images[index] ? (
@@ -493,13 +731,15 @@
                                                 className="w-full h-full object-cover"
                                                 crossOrigin={images[index].startsWith('data:') ? undefined : "anonymous"}
                                             />
-                                            <button 
-                                                onClick={(e) => clearImage(index, e)}
-                                                className="absolute top-2 right-2 bg-black/60 hover:bg-red-600 text-white p-1.5 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10"
-                                                title="移除圖片"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                            {!isEditMode && (
+                                                <button 
+                                                    onClick={(e) => clearImage(index, e)}
+                                                    className="absolute top-2 right-2 bg-black/60 hover:bg-red-600 text-white p-1.5 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10"
+                                                    title="移除圖片"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
                                         </>
                                     ) : (
                                         <div className="absolute inset-0 flex flex-col items-center justify-center text-neutral-500 group-hover:text-neutral-300 transition-colors">
@@ -509,15 +749,27 @@
                                             <span className="text-xs md:text-sm font-medium">上傳圖片</span>
                                         </div>
                                     )}
+                                    
+                                    {/* Text Overlay Area */}
                                     <div className="absolute bottom-0 left-0 right-0 p-3 flex justify-center items-end pointer-events-none bg-gradient-to-t from-black/60 to-transparent pt-10">
-                                        <span 
-                                            className="text-lg md:text-2xl font-bold text-white tracking-wide text-center leading-tight"
-                                            style={{ 
-                                                textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
-                                            }}
-                                        >
-                                            {label}
-                                        </span>
+                                        {isEditMode ? (
+                                            <input 
+                                                type="text"
+                                                value={label}
+                                                onChange={(e) => handleLabelChange(index, e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="pointer-events-auto bg-black/50 text-white border-b border-white text-center w-full focus:outline-none"
+                                            />
+                                        ) : (
+                                            <span 
+                                                className="text-lg md:text-2xl font-bold text-white tracking-wide text-center leading-tight"
+                                                style={{ 
+                                                    textShadow: '2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
+                                                }}
+                                            >
+                                                {label}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -527,7 +779,7 @@
                         <ImageModal 
                             isOpen={isModalOpen}
                             onClose={closeModal}
-                            title={activeCell !== null ? GRID_LABELS[activeCell] : ''}
+                            title={activeCell !== null ? gridLabels[activeCell] : ''}
                             onUrlSelect={handleImageSelect}
                         />
 
