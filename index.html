@@ -36,7 +36,7 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useRef, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Download, Trash2, RotateCcw, Upload, Link as LinkIcon, X, AlertCircle, Camera, Loader2, Share2, Check, Save, Move, ZoomIn, Edit3 } from 'lucide-react';
+        import { Download, Trash2, RotateCcw, Upload, X, AlertCircle, Camera, Loader2, Share2, Check, Save, Move, ZoomIn, Edit3 } from 'lucide-react';
 
         const DEFAULT_GRID_LABELS = [
             "入坑機", "第一台愛機", "最佳機設", "最強",
@@ -52,17 +52,6 @@
             const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
             const imgRef = useRef(null);
             const containerRef = useRef(null);
-
-            // Calculate min scale to cover the area
-            useEffect(() => {
-                if (imgRef.current && containerRef.current) {
-                    const img = imgRef.current;
-                    const container = containerRef.current;
-                    // Aspect ratio is 3:4 (300:400)
-                    const aspect = 3/4; 
-                    // Initial fitting logic could go here if needed
-                }
-            }, [imageSrc]);
 
             const handleMouseDown = (e) => {
                 setIsDragging(true);
@@ -84,141 +73,59 @@
             };
 
             const handleCrop = () => {
-                const canvas = document.createElement('canvas');
-                // Output size: 600x800 (Double the display size for quality)
-                const outWidth = 600;
-                const outHeight = 800;
-                canvas.width = outWidth;
-                canvas.height = outHeight;
-                const ctx = canvas.getContext('2d');
+                if (!imgRef.current) return;
+                
+                try {
+                    const canvas = document.createElement('canvas');
+                    // Output size: 600x800 (Double the display size for quality)
+                    const outWidth = 600;
+                    const outHeight = 800;
+                    canvas.width = outWidth;
+                    canvas.height = outHeight;
+                    const ctx = canvas.getContext('2d');
 
-                const img = imgRef.current;
-                
-                // Calculations to map the visible CSS transform to Canvas drawImage
-                // The container is fixed size (e.g. 300x400 in UI), but we want high res output.
-                // We need to map the "visual" pixels to "image" pixels.
-                
-                // Let's rely on drawing the image with the same offsets scaled up
-                // Container visual size (CSS pixels)
-                const contW = 300; 
-                const contH = 400;
+                    const img = imgRef.current;
+                    const contW = 300; 
+                    const contH = 400;
 
-                // Create a temporary canvas to apply transformations
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(0, 0, outWidth, outHeight);
-                
-                // Scale factor between visual container and output canvas
-                const outputScale = outWidth / contW; // 2
+                    // Create a temporary canvas to apply transformations
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillRect(0, 0, outWidth, outHeight);
+                    
+                    const outputScale = outWidth / contW; // 2
 
-                ctx.save();
-                // Move to center to scale from center? No, our transform origin is usually center or top-left.
-                // In CSS transform logic above: translate(x, y) scale(s)
-                // We are emulating the visual appearance onto the canvas.
-                
-                // 1. Move to the translated position (scaled up for output)
-                ctx.translate(position.x * outputScale, position.y * outputScale);
-                
-                // 2. Scale from center of the image visually? 
-                // The CSS transform-origin defaults to 50% 50% of the element (the image).
-                // To match CSS:
-                // Move to center of image -> Scale -> Move back
-                const imgCenterX = (img.width * outputScale) / 2;
-                const imgCenterY = (img.height * outputScale) / 2;
+                    const ratio = img.naturalWidth / img.naturalHeight;
+                    let baseW, baseH;
+                    
+                    // Logic matching the initial display
+                    if (ratio > 3/4) {
+                        baseH = contH;
+                        baseW = contH * ratio;
+                    } else {
+                        baseW = contW;
+                        baseH = contW / ratio;
+                    }
+                    
+                    ctx.translate(outWidth/2, outHeight/2);
+                    ctx.translate(position.x * outputScale, position.y * outputScale);
+                    ctx.scale(scale, scale);
+                    
+                    // Draw image centered
+                    ctx.drawImage(
+                        img, 
+                        -baseW, 
+                        -baseH, 
+                        baseW * 2, 
+                        baseH * 2
+                    );
+                    
+                    const dataUrl = canvas.toDataURL('image/png');
+                    onConfirm(dataUrl);
 
-                // However, our simplified CSS logic applies transform to the <img> element directly.
-                // Let's try a simpler approach: Draw the image at (x,y) with width*scale, height*scale.
-                // But we need to account that the pivot point for scaling in our simple UI 
-                // might look different if we don't align origins.
-                
-                // Let's just draw it:
-                // Visible Width = NaturalWidth * Scale
-                // Visible X = position.x
-                
-                // To keep it centered initially:
-                // We need to render the image centered in the canvas, plus the user offset.
-                
-                // Center of Canvas
-                const cx = outWidth / 2;
-                const cy = outHeight / 2;
-
-                // Draw Image properties
-                const drawW = img.naturalWidth * scale * (outWidth / img.naturalWidth * (img.naturalWidth/contW)); // Approximate mapping?
-                // Actually easier:
-                // The visual image width is img.width (displayed) * scale.
-                // img.width in CSS is usually "auto" or constrained.
-                
-                // Let's compute exact pixel mapping.
-                // CSS displayed width (before scale)
-                const displayW = img.width; 
-                const displayH = img.height;
-
-                ctx.translate(cx, cy);
-                ctx.translate(position.x * outputScale, position.y * outputScale);
-                ctx.scale(scale, scale);
-                
-                // Draw image centered at origin
-                // We need to draw the source image such that it fits the container logic
-                // If the image was "object-fit: cover" initially, we need to replicate that base scale?
-                // Let's assume the user starts from 1:1 pixel mapping relative to container? No.
-                
-                // SIMPLIFIED LOGIC:
-                // Just draw the image. 
-                // position.x is relative to the center of container? 
-                // Let's adjust the UI to be easier to map.
-                // In UI: Image is centered in container. User moves it (translate) and scales it (scale).
-                
-                ctx.drawImage(
-                    img, 
-                    -img.naturalWidth / 2 * (outWidth/displayW), // This mapping is tricky without knowing exact display render
-                    -img.naturalHeight / 2 * (outWidth/displayW) 
-                );
-                
-                // RE-ATTEMPTING ROBUST CROP LOGIC:
-                // Instead of complex math, let's just draw what the user sees relative to the container.
-                // Container is 300x400.
-                // Image is displayed with style { transform: translate(x,y) scale(s) }
-                // Image is naturally centered via flexbox in UI.
-                
-                const ratio = img.naturalWidth / img.naturalHeight;
-                let baseW, baseH;
-                
-                // "Contain" logic as base size to ensure it fits? Or just use natural size?
-                // Let's use the logic that fits the image into the view initially.
-                if (ratio > 3/4) {
-                    // Wider than container
-                    baseH = contH;
-                    baseW = contH * ratio;
-                } else {
-                    // Taller than container
-                    baseW = contW;
-                    baseH = contW / ratio;
+                } catch (error) {
+                    console.error("Crop failed:", error);
+                    alert("裁切失敗，請重試。");
                 }
-                
-                // Now we have the size of the image "at scale 1" in the UI (before user zoom)
-                // Draw onto output canvas (size 600x800, so 2x factor)
-                ctx.restore(); // reset
-                ctx.clearRect(0,0,outWidth,outHeight);
-                ctx.save();
-                
-                // Output center
-                ctx.translate(outWidth/2, outHeight/2);
-                // User pan (scaled x2)
-                ctx.translate(position.x * 2, position.y * 2);
-                // User zoom
-                ctx.scale(scale, scale);
-                
-                // Draw image centered
-                ctx.drawImage(
-                    img, 
-                    -baseW, // baseW is roughly half size visually (300px), so * 2 for output? No baseW is CSS px.
-                    -baseH, 
-                    baseW * 2, 
-                    baseH * 2
-                );
-                
-                ctx.restore();
-                
-                onConfirm(canvas.toDataURL('image/png'));
             };
 
             return (
@@ -244,18 +151,15 @@
                                 className="absolute top-1/2 left-1/2 max-w-none origin-center pointer-events-none"
                                 style={{ 
                                     transform: `translate(-50%, -50%) translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                                    // Initial sizing logic handled by calculating baseW/baseH above implicitly by using max-height/width constraints?
-                                    // To match the canvas logic, we need explicit sizing.
-                                    // Let's force "Contain" logic via JS or specific CSS
                                     height: (imgRef.current?.naturalWidth / imgRef.current?.naturalHeight > 3/4) ? '400px' : 'auto',
                                     width: (imgRef.current?.naturalWidth / imgRef.current?.naturalHeight > 3/4) ? 'auto' : '300px',
                                 }}
-                                onLoad={(e) => {
-                                    // Reset on load
+                                onLoad={() => {
                                     setScale(1); 
                                     setPosition({x:0, y:0});
                                 }}
                             />
+                            
                             {/* Grid overlay */}
                             <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-30">
                                 <div className="border-r border-white/50"></div>
@@ -295,7 +199,12 @@
                         </div>
                         <div className="flex gap-3">
                             <button onClick={onCancel} className="flex-1 py-3 bg-neutral-700 text-white rounded-lg font-bold">取消</button>
-                            <button onClick={handleCrop} className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-bold">確認使用</button>
+                            <button 
+                                onClick={handleCrop} 
+                                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-bold"
+                            >
+                                確認使用
+                            </button>
                         </div>
                      </div>
                 </div>
@@ -304,8 +213,6 @@
 
 
         const ImageModal = ({ isOpen, onClose, title, onUrlSelect }) => {
-            const [imageUrl, setImageUrl] = useState('');
-            const [activeTab, setActiveTab] = useState('upload'); 
             const fileInputRef = useRef(null);
             
             // Cropper State
@@ -313,9 +220,7 @@
             
             useEffect(() => {
                 if (isOpen) {
-                    setImageUrl('');
                     setTempImage(null);
-                    setActiveTab('upload');
                 }
             }, [isOpen]);
 
@@ -343,16 +248,6 @@
                 );
             }
 
-            const handleUrlSubmit = (e) => {
-                e.preventDefault();
-                if (imageUrl) {
-                    // For URL, we can't easily crop due to CORS taint on canvas often.
-                    // We just use it directly or try to load it into cropper if CORS permits.
-                    // Let's try to load into cropper.
-                    setTempImage(imageUrl);
-                }
-            };
-
             const handleFileUpload = (e) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -366,7 +261,7 @@
 
             return (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-neutral-900 w-full max-w-md rounded-2xl border border-neutral-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="bg-neutral-900 w-full max-w-md rounded-2xl border border-neutral-700 shadow-2xl overflow-hidden flex flex-col">
                         <div className="flex justify-between items-center p-4 border-b border-neutral-800 bg-neutral-800/50">
                             <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                 <span className="text-blue-400">#{title}</span>
@@ -375,74 +270,32 @@
                                 <X size={20} />
                             </button>
                         </div>
-                        <div className="flex border-b border-neutral-800 shrink-0">
-                            <button 
-                                onClick={() => setActiveTab('upload')}
-                                className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'upload' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/10' : 'text-neutral-400 hover:text-neutral-200'}`}
-                            >
-                                <Upload size={18} /> 本機上傳
-                            </button>
-                            <button 
-                                onClick={() => setActiveTab('url')}
-                                className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'url' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/10' : 'text-neutral-400 hover:text-neutral-200'}`}
-                            >
-                                <LinkIcon size={18} /> 圖片網址
-                            </button>
-                        </div>
-                        <div className="p-6 bg-neutral-900 min-h-[300px]">
-                            {activeTab === 'upload' && (
-                                <div className="flex flex-col items-center justify-center space-y-6 py-4 h-full">
-                                    <div 
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="w-full border-2 border-dashed border-neutral-600 hover:border-blue-400 hover:bg-neutral-800/50 rounded-xl p-10 cursor-pointer transition-all group text-center"
-                                    >
-                                        <div className="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                                            <Upload size={32} className="text-neutral-400 group-hover:text-blue-400" />
-                                        </div>
-                                        <h4 className="text-white font-bold text-lg mb-2">
-                                            選擇「<span className="text-blue-400">{title}</span>」的圖片
-                                        </h4>
-                                        <p className="text-neutral-500 text-sm">選擇後可裁切位置</p>
+                        
+                        <div className="p-8 bg-neutral-900">
+                            <div className="flex flex-col items-center justify-center space-y-6">
+                                <div 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-full border-2 border-dashed border-neutral-600 hover:border-blue-400 hover:bg-neutral-800/50 rounded-xl p-10 cursor-pointer transition-all group text-center"
+                                >
+                                    <div className="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                                        <Upload size={32} className="text-neutral-400 group-hover:text-blue-400" />
                                     </div>
-                                    <input 
-                                        type="file" 
-                                        ref={fileInputRef}
-                                        onChange={handleFileUpload}
-                                        accept="image/*"
-                                        className="hidden"
-                                    />
+                                    <h4 className="text-white font-bold text-lg mb-2">
+                                        選擇「<span className="text-blue-400">{title}</span>」的圖片
+                                    </h4>
+                                    <p className="text-neutral-500 text-sm">
+                                        支援 JPG, PNG, GIF, WebP<br/>
+                                        <span className="text-xs text-neutral-600">(GIF 將呈現為靜態圖片)</span>
+                                    </p>
                                 </div>
-                            )}
-                            {activeTab === 'url' && (
-                                <div className="space-y-6 pt-2">
-                                    <form onSubmit={handleUrlSubmit} className="space-y-4">
-                                        <div>
-                                            <label className="block text-neutral-400 text-sm mb-2">圖片網址</label>
-                                            <div className="relative">
-                                                <input 
-                                                    type="url" 
-                                                    value={imageUrl}
-                                                    onChange={(e) => setImageUrl(e.target.value)}
-                                                    placeholder="https://..."
-                                                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-10 pr-4 py-3 text-white focus:outline-none focus:border-blue-500 placeholder-neutral-600"
-                                                />
-                                                <LinkIcon className="absolute left-3 top-3.5 text-neutral-500" size={18} />
-                                            </div>
-                                        </div>
-                                        <button 
-                                            type="submit"
-                                            disabled={!imageUrl}
-                                            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors"
-                                        >
-                                            進入裁切
-                                        </button>
-                                    </form>
-                                    <div className="bg-yellow-900/20 border border-yellow-900/50 rounded-lg p-4 text-sm text-yellow-200/80 flex gap-2">
-                                        <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                                        <span>注意：跨域圖片可能無法裁切，系統會盡力嘗試載入。</span>
-                                    </div>
-                                </div>
-                            )}
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef}
+                                    onChange={handleFileUpload}
+                                    accept="image/*"
+                                    className="hidden"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
