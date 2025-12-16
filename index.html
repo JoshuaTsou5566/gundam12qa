@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>機甲番產生器 (12/15格版)</title>
+    <title>機甲番產生器 (12/15格客製版)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Babel for JSX -->
@@ -36,16 +36,18 @@
         import { createRoot } from 'react-dom/client';
         import { Download, Trash2, RotateCcw, Upload, X, AlertCircle, Camera, Loader2, Share2, Check, Save, Move, ZoomIn, Edit3, Grid, Layout } from 'lucide-react';
 
-        // 預設標籤設定
+        // 12格 預設標籤 (經典版)
         const LABELS_12 = [
             "入坑機", "第一台愛機", "最佳機設", "最強",
             "真男人要用...", "最喜歡的量產機", "最喜歡的主角機", "最喜歡的反派機",
             "最意難平", "最想開", "最帥氣", "最難忘"
         ];
 
+        // 15格 預設標籤 (客製版)
         const LABELS_15 = [
-            ...LABELS_12,
-            "最想要的模型", "最喜歡的戰艦", "最喜歡的必殺技"
+            "入坑機", "最喜歡的機體", "不喜歡的機體", "最喜歡的駕駛", "最討厭的駕駛",
+            "最喜歡的女角", "最討厭的女角", "最愛的量產機", "真男人就要用", "最想駕駛",
+            "宇宙世紀喜歡", "獨立世界喜歡", "最喜歡的反派", "最討厭的反派", "最喜歡戰艦"
         ];
 
         // --- Cropper Component ---
@@ -95,7 +97,7 @@
                     ctx.fillStyle = "#ffffff";
                     ctx.fillRect(0, 0, outWidth, outHeight);
                     
-                    const outputScale = outWidth / contW; // 2
+                    const outputScale = outWidth / contW; 
 
                     const ratio = img.naturalWidth / img.naturalHeight;
                     let baseW, baseH;
@@ -322,8 +324,8 @@
 
         const MechaGridMaker = () => {
             const [layoutMode, setLayoutMode] = useState('12'); // '12' or '15'
-            const [images, setImages] = useState(Array(15).fill(null)); // Max size
-            const [gridLabels, setGridLabels] = useState(LABELS_15); // Max labels
+            const [images, setImages] = useState(Array(15).fill(null)); 
+            const [gridLabels, setGridLabels] = useState(LABELS_12); // Default to 12
             const [mainTitle, setMainTitle] = useState("機甲番12問");
             const [isEditMode, setIsEditMode] = useState(false);
             const [isGenerating, setIsGenerating] = useState(false);
@@ -332,17 +334,21 @@
             const [resultImage, setResultImage] = useState(null);
             const [isResultOpen, setIsResultOpen] = useState(false);
 
-            // 當切換模式時，同步更新標題
+            // 當切換模式時，同步更新標題與標籤
             useEffect(() => {
-                if (mainTitle === "機甲番12問" && layoutMode === '15') {
-                    setMainTitle("機甲番15問");
-                } else if (mainTitle === "機甲番15問" && layoutMode === '12') {
+                if (layoutMode === '12') {
                     setMainTitle("機甲番12問");
+                    setGridLabels(LABELS_12);
+                } else {
+                    setMainTitle("機甲番15問");
+                    setGridLabels(LABELS_15);
                 }
+                // Optional: Clear images when switching layout to avoid confusion
+                // setImages(Array(15).fill(null)); 
             }, [layoutMode]);
 
-            const currentLabels = layoutMode === '12' ? gridLabels.slice(0, 12) : gridLabels;
-            const currentImages = layoutMode === '12' ? images.slice(0, 12) : images;
+            const currentLabels = gridLabels; // Uses state which is updated by effect
+            const currentImages = images.slice(0, layoutMode === '12' ? 12 : 15);
 
             const openModal = (index) => {
                 setActiveCell(index);
@@ -397,7 +403,6 @@
                     const borderThickness = 10;
                     const rows = 3;
                     
-                    // Config based on layout
                     const cols = layoutMode === '12' ? 4 : 5;
                     const totalCells = layoutMode === '12' ? 12 : 15;
 
